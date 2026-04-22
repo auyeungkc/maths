@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>面積公式的概念及認識</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f0f4f8;
+            --accent-color: #ffcc00;
+        }
+
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #header {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            width: 100%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            width: 100%;
+            padding: 20px;
+            gap: 20px;
+            box-sizing: border-box;
+        }
+
+        #sidebar {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            z-index: 50;
+        }
+
+        #canvas-area {
+            flex: 1;
+            background: white;
+            border-radius: 15px;
+            position: relative;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 長方形目標 - 設為相對定位，作為正方形的容器 */
+        #target-rect {
+            border: 3px solid #333;
+            position: relative; 
+            background: #fafafa;
+            /* 允許正方形超出邊界顯示，但不影響佈局 */
+        }
+
+        .label {
+            position: absolute;
+            font-weight: bold;
+            color: #d32f2f;
+            font-size: 18px;
+            white-space: nowrap;
+        }
+
+        #dispenser-container {
+            border: 2px dashed #aaa;
+            padding: 15px;
+            text-align: center;
+            border-radius: 10px;
+            background: #fffdf0;
+        }
+
+        /* 正方形樣式 */
+        .unit-square {
+            width: 20px;
+            height: 20px;
+            background-color: var(--accent-color);
+            border: 0.5px solid #b8860b;
+            position: absolute; /* 相對於父元素 target-rect */
+            cursor: grab;
+            touch-action: none;
+            will-change: transform;
+            z-index: 10;
+        }
+
+        /* 拖拽中的樣式 */
+        .dragging {
+            position: fixed; /* 拖動時用 fixed 才能跨越邊界 */
+            z-index: 10000;
+            pointer-events: none;
+        }
+
+        .source-square {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background-color: var(--accent-color);
+            border: 2px solid #b8860b;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        input[type="number"] {
+            width: 100px;
+            padding: 12px;
+            font-size: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        button {
+            padding: 12px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-bottom: 5px;
+        }
+
+        button.secondary { background-color: #7f8c8d; }
+        button.reset { background-color: #e74c3c; }
+
+        #feedback {
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <h1 style="margin:0">面積公式的概念及認識</h1>
+</div>
+
+<div id="main-container">
+    <div id="sidebar">
+        <div id="dispenser-container">
+            <p><strong>拖曳出正方形</strong></p>
+            <div id="dispenser" class="source-square"></div>
+            <p>(邊長 1cm)</p>
+        </div>
+
+        <div style="margin-top: 10px;">
+            <label>長方形的面積是？</label><br>
+            <input type="number" id="answer-input" pattern="\d*"> 平方厘米
+        </div>
+
+        <button onclick="checkAnswer()">核對答案</button>
+        <button class="secondary" onclick="clearSquares()">清除所有正方形</button>
+        <button class="reset" onclick="initGame()">換一題</button>
+
+        <div id="feedback"></div>
+    </div>
+
+    <div id="canvas-area">
+        <div id="target-rect">
+            </div>
+    </div>
+</div>
+
+<script>
+    const SCALE = 20; 
+    let currentWidth = 0;
+    let currentHeight = 0;
+    const targetRect = document.getElementById('target-rect');
+    const feedback = document.getElementById('feedback');
+    const dispenser = document.getElementById('dispenser');
+
+    let activeElement = null;
+    let startX, startY;
+
+    function initGame() {
+        currentWidth = Math.floor(Math.random() * (12 - 8 + 1)) + 8;
+        currentHeight = Math.floor(Math.random() * (20 - 16 + 1)) + 16;
+        
+        targetRect.style.width = (currentWidth * SCALE) + 'px';
+        targetRect.style.height = (currentHeight * SCALE) + 'px';
+        
+        document.querySelectorAll('.label').forEach(l => l.remove());
+        createLabel(currentWidth + " cm", "top");
+        createLabel(currentHeight + " cm", "left");
+
+        clearSquares();
+        feedback.innerHTML = "";
+        document.getElementById('answer-input').value = "";
+    }
+
+    function createLabel(text, pos) {
+        const span = document.createElement('span');
+        span.className = 'label';
+        span.innerText = text;
+        targetRect.appendChild(span);
+        if(pos === "top") {
+            span.style.top = "-30px"; span.style.left = "50%"; span.style.transform = "translateX(-50%)";
+        } else {
+            span.style.left = "-65px"; span.style.top = "50%"; span.style.transform = "translateY(-50%) rotate(-90deg)";
+        }
+    }
+
+    // 處理拖拽開始
+    function startDrag(e, el) {
+        activeElement = el;
+        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+        
+        startX = clientX;
+        startY = clientY;
+
+        // 拖動時暫時移至 body 並改為 fixed，確保能跨區域顯示
+        const rect = activeElement.getBoundingClientRect();
+        activeElement.style.left = rect.left + 'px';
+        activeElement.style.top = rect.top + 'px';
+        activeElement.classList.add('dragging');
+        document.body.appendChild(activeElement);
+    }
+
+    window.addEventListener('mousemove', handleMove, { passive: false });
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
+
+    function handleMove(e) {
+        if (!activeElement) return;
+        e.preventDefault();
+
+        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+
+        activeElement.style.left = (clientX - 10) + 'px';
+        activeElement.style.top = (clientY - 10) + 'px';
+    }
+
+    function endDrag(e) {
+        if (!activeElement) return;
+
+        const clientX = e.clientX || (e.changedTouches ? e.changedTouches[0].clientX : 0);
+        const clientY = e.clientY || (e.changedTouches ? e.changedTouches[0].clientY : 0);
+
+        // 關鍵：將正方形重新掛載到 targetRect 內部
+        const targetRectBounds = targetRect.getBoundingClientRect();
+        
+        // 計算相對於長方形左上角的坐標
+        const relativeX = clientX - targetRectBounds.left - 10;
+        const relativeY = clientY - targetRectBounds.top - 10;
+
+        activeElement.classList.remove('dragging');
+        activeElement.style.left = relativeX + 'px';
+        activeElement.style.top = relativeY + 'px';
+        
+        // 將方塊放入長方形容器內，這樣縮放時就會同步位移
+        targetRect.appendChild(activeElement);
+        
+        activeElement = null;
+    }
+
+    // 產生新方塊
+    dispenser.addEventListener('mousedown', spawnAndDrag);
+    dispenser.addEventListener('touchstart', spawnAndDrag);
+
+    function spawnAndDrag(e) {
+        e.preventDefault();
+        const newSq = document.createElement('div');
+        newSq.className = 'unit-square';
+        
+        // 先暫時放在 body 啟動拖拽
+        document.body.appendChild(newSq);
+        
+        newSq.addEventListener('mousedown', (ev) => {
+            ev.stopPropagation();
+            startDrag(ev, newSq);
+        });
+        newSq.addEventListener('touchstart', (ev) => {
+            ev.stopPropagation();
+            startDrag(ev, newSq);
+        });
+
+        startDrag(e, newSq);
+    }
+
+    function clearSquares() {
+        document.querySelectorAll('.unit-square').forEach(s => s.remove());
+    }
+
+    function checkAnswer() {
+        const userAns = parseInt(document.getElementById('answer-input').value);
+        const correctAns = currentWidth * currentHeight;
+        if (userAns === correctAns) {
+            feedback.innerHTML = '<div style="font-size:40px">🎉🌟</div>太棒了！答對了！';
+            feedback.style.color = "#2ecc71";
+        } else {
+            feedback.innerHTML = '<div style="font-size:40px">💪🐻</div>加油！再試試看！';
+            feedback.style.color = "#e67e22";
+        }
+    }
+
+    initGame();
+</script>
+
+</body>
+</html>
