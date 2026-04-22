@@ -68,6 +68,8 @@
             border: 3px solid #333;
             position: relative; 
             background: #fafafa;
+            /* 確保沒有 transition 干擾位置計算 */
+            transition: none !important;
         }
 
         .label {
@@ -76,6 +78,7 @@
             color: #d32f2f;
             font-size: 18px;
             white-space: nowrap;
+            pointer-events: none;
         }
 
         #dispenser-container {
@@ -94,9 +97,10 @@
             position: absolute; 
             cursor: grab;
             touch-action: none;
-            will-change: transform;
             z-index: 10;
             box-sizing: border-box;
+            /* 強制移除任何可能的動畫緩衝 */
+            transition: none !important;
         }
 
         .dragging {
@@ -120,6 +124,7 @@
             color: #333;
             margin-top: 8px;
             line-height: 1.6;
+            pointer-events: none;
         }
 
         input[type="number"] {
@@ -196,7 +201,7 @@
     const dispenser = document.getElementById('dispenser');
 
     let activeElement = null;
-    let grabOffsetX = 0; // 紀錄點擊點相對於正方形左上角的距離
+    let grabOffsetX = 0;
     let grabOffsetY = 0;
 
     function initGame() {
@@ -233,30 +238,24 @@
         const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
         
         const rect = activeElement.getBoundingClientRect();
-        // 精確計算抓取點偏移量
         grabOffsetX = clientX - rect.left;
         grabOffsetY = clientY - rect.top;
 
-        // 轉為固定定位
+        // 立即轉為 fixed 確保位置不跳動
         activeElement.style.left = rect.left + 'px';
         activeElement.style.top = rect.top + 'px';
         activeElement.classList.add('dragging');
         document.body.appendChild(activeElement);
     }
 
-    window.addEventListener('mousemove', handleMove, { passive: false });
-    window.addEventListener('touchmove', handleMove, { passive: false });
-    window.addEventListener('mouseup', endDrag);
-    window.addEventListener('touchend', endDrag);
-
+    // 將監聽器分開，確保座標獲取更純淨
     function handleMove(e) {
         if (!activeElement) return;
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
 
-        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-        const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+        const clientX = (e.type === 'touchmove') ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.type === 'touchmove') ? e.touches[0].clientY : e.clientY;
 
-        // 根據抓取點即時移動
         activeElement.style.left = (clientX - grabOffsetX) + 'px';
         activeElement.style.top = (clientY - grabOffsetY) + 'px';
     }
@@ -264,51 +263,57 @@
     function endDrag(e) {
         if (!activeElement) return;
 
-        // 獲取放手時的最後坐標
-        const rect = activeElement.getBoundingClientRect();
-        const targetRectBounds = targetRect.getBoundingClientRect();
-        
-        // 修正：計算放手時正方形相對於長方形容器的物理坐標
-        const relativeX = rect.left - targetRectBounds.left;
-        const relativeY = rect.top - targetRectBounds.top;
+        // 停止追蹤前，先獲取方塊當下的「絕對座標」
+        const finalRect = activeElement.getBoundingClientRect();
+        const targetBounds = targetRect.getBoundingClientRect();
 
+        // 核心修正：直接使用 getBoundingClientRect 的差值，避免使用 e.clientX
+        const finalRelativeX = finalRect.left - targetBounds.left;
+        const finalRelativeY = finalRect.top - targetBounds.top;
+
+        // 轉換父容器
         activeElement.classList.remove('dragging');
-        activeElement.style.left = relativeX + 'px';
-        activeElement.style.top = relativeY + 'px';
+        activeElement.style.left = finalRelativeX + 'px';
+        activeElement.style.top = finalRelativeY + 'px';
         
-        // 放回長方形容器中
         targetRect.appendChild(activeElement);
         activeElement = null;
     }
 
-    dispenser.addEventListener('mousedown', spawnAndDrag);
-    dispenser.addEventListener('touchstart', spawnAndDrag);
+    window.addEventListener('mousemove', handleMove, { passive: false });
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
 
+    // 從產生器生成並立即開始拖拽
     function spawnAndDrag(e) {
         e.preventDefault();
         const newSq = document.createElement('div');
         newSq.className = 'unit-square';
         
-        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-        const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+        const clientX = (e.type === 'touchstart') ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.type === 'touchstart') ? e.touches[0].clientY : e.clientY;
 
-        // 初始化在滑鼠/手指點擊位置 (居中)
+        // 生成在手指位置中心
         newSq.style.left = (clientX - 10) + 'px';
         newSq.style.top = (clientY - 10) + 'px';
         
         document.body.appendChild(newSq);
         
-        newSq.addEventListener('mousedown', (ev) => {
+        newSq.addEventListener('mousedown', function(ev) {
             ev.stopPropagation();
-            startDrag(ev, newSq);
+            startDrag(ev, this);
         });
-        newSq.addEventListener('touchstart', (ev) => {
+        newSq.addEventListener('touchstart', function(ev) {
             ev.stopPropagation();
-            startDrag(ev, newSq);
+            startDrag(ev, this);
         });
 
         startDrag(e, newSq);
     }
+
+    dispenser.addEventListener('mousedown', spawnAndDrag);
+    dispenser.addEventListener('touchstart', spawnAndDrag);
 
     function clearSquares() {
         document.querySelectorAll('.unit-square').forEach(s => s.remove());
