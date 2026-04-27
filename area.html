@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>面積公式學習工具 (iPad A2152 專用版)</title>
+    <style>
+        :root {
+            /* 針對 iPad A2152 (Air 3) 的物理 1cm 像素基準 (132 PPI / 2.54) */
+            --cm-px: 51.9685px; 
+            --primary-color: #4a90e2;
+            --bg-color: #f8f9fa;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #header {
+            background: white;
+            padding: 12px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        #main-container {
+            display: flex;
+            flex: 1;
+            padding: 15px;
+            gap: 15px;
+            box-sizing: border-box;
+        }
+
+        #sidebar {
+            width: 260px;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        #dispenser-box {
+            border: 2px dashed #ccc;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            background: #fffef0;
+        }
+
+        .source-square {
+            width: var(--cm-px);
+            height: var(--cm-px);
+            background: #ffcc00;
+            border: 1px solid #b8860b;
+            margin: 10px auto;
+            cursor: grab;
+            box-sizing: border-box;
+        }
+
+        .unit-label {
+            font-size: 15px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        #canvas-area {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+        }
+
+        #target-rect {
+            border: 2px solid #333;
+            position: relative;
+            background: #fafafa;
+            box-sizing: content-box;
+        }
+
+        .rect-label {
+            position: absolute;
+            font-weight: bold;
+            color: #d32f2f;
+            font-size: 18px;
+            white-space: nowrap;
+        }
+
+        .draggable-square {
+            width: var(--cm-px);
+            height: var(--cm-px);
+            background: #ffcc00;
+            border: 0.5px solid #b8860b;
+            position: fixed;
+            z-index: 1000;
+            box-sizing: border-box;
+            touch-action: none;
+            transition: none !important;
+        }
+
+        input[type="number"] {
+            width: 80px;
+            padding: 10px;
+            font-size: 20px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        button {
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: var(--primary-color);
+            color: white;
+        }
+
+        button.reset { background: #e74c3c; }
+        button.clear { background: #7f8c8d; }
+
+        #feedback {
+            font-weight: bold;
+            text-align: center;
+            font-size: 20px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <h2 style="margin:0">面積公式：認識 1 平方厘米</h2>
+</div>
+
+<div id="main-container">
+    <div id="sidebar">
+        <div id="dispenser-box">
+            <strong>拖拽生成正方形</strong>
+            <div id="dispenser" class="source-square"></div>
+            <div class="unit-label">
+                邊長：1 cm<br>
+                面積：1 平方厘米 (1 cm²)
+            </div>
+        </div>
+
+        <div>
+            <label style="font-weight:bold;">長方形面積是多少？</label><br>
+            <input type="number" id="user-answer" pattern="\d*"> cm²
+        </div>
+
+        <button onclick="checkAnswer()">核對答案</button>
+        <button class="reset" onclick="initGame()">更換題目</button>
+        <button class="clear" onclick="clearSquares()">清除方塊</button>
+        
+        <div id="feedback"></div>
+        <div style="font-size: 11px; color: #999; margin-top: auto; text-align: center;">
+            專為 iPad A2152 校準<br>1cm = 51.97 像素
+        </div>
+    </div>
+
+    <div id="canvas-area">
+        <div id="target-rect"></div>
+    </div>
+</div>
+
+<script>
+    const PX_PER_CM = 51.9685;
+    let currentW = 0, currentH = 0;
+    let activeSq = null;
+    let dragOffset = { x: 0, y: 0 };
+    const squareData = new Map();
+
+    const targetRect = document.getElementById('target-rect');
+    const dispenser = document.getElementById('dispenser');
+
+    function initGame() {
+        // 隨機寬高 (5-10cm) (6-12cm)，適配 A2152 屏幕
+        currentW = Math.floor(Math.random() * 6) + 5;
+        currentH = Math.floor(Math.random() * 7) + 6;
+
+        targetRect.style.width = (currentW * PX_PER_CM) + 'px';
+        targetRect.style.height = (currentH * PX_PER_CM) + 'px';
+
+        document.querySelectorAll('.rect-label').forEach(el => el.remove());
+        addLabel(currentW + " cm", "top");
+        addLabel(currentH + " cm", "left");
+
+        clearSquares();
+        document.getElementById('user-answer').value = "";
+        document.getElementById('feedback').innerText = "";
+    }
+
+    function addLabel(txt, pos) {
+        const span = document.createElement('span');
+        span.className = 'rect-label';
+        span.innerText = txt;
+        targetRect.appendChild(span);
+        if(pos === "top") {
+            span.style.top = "-30px"; span.style.left = "50%"; span.style.transform = "translateX(-50%)";
+        } else {
+            span.style.left = "-65px"; span.style.top = "50%"; span.style.transform = "translateY(-50%) rotate(-90deg)";
+        }
+    }
+
+    function startDrag(e) {
+        const clientX = e.clientX || e.touches[0].clientX;
+        const clientY = e.clientY || e.touches[0].clientY;
+
+        if (e.target === dispenser) {
+            activeSq = document.createElement('div');
+            activeSq.className = 'draggable-square';
+            document.body.appendChild(activeSq);
+            activeSq.style.left = (clientX - PX_PER_CM/2) + 'px';
+            activeSq.style.top = (clientY - PX_PER_CM/2) + 'px';
+            
+            activeSq.addEventListener('touchstart', startDrag, {passive: false});
+            activeSq.addEventListener('mousedown', startDrag);
+        } else {
+            activeSq = e.target;
+        }
+
+        const rect = activeSq.getBoundingClientRect();
+        dragOffset.x = clientX - rect.left;
+        dragOffset.y = clientY - rect.bottom + PX_PER_CM; 
+        activeSq.style.zIndex = 2000;
+    }
+
+    function moveDrag(e) {
+        if (!activeSq) return;
+        const clientX = e.clientX || e.touches?.[0].clientX;
+        const clientY = e.clientY || e.touches?.[0].clientY;
+
+        activeSq.style.left = (clientX - dragOffset.x) + 'px';
+        activeSq.style.top = (clientY - (PX_PER_CM/2)) + 'px'; // 讓手指在方塊中心
+    }
+
+    function endDrag() {
+        if (!activeSq) return;
+        const sqRect = activeSq.getBoundingClientRect();
+        const tarRect = targetRect.getBoundingClientRect();
+
+        squareData.set(activeSq, {
+            relX: sqRect.left - tarRect.left,
+            relY: sqRect.top - tarRect.top
+        });
+
+        activeSq.style.zIndex = 1000;
+        activeSq = null;
+        syncPositions();
+    }
+
+    function syncPositions() {
+        const tarRect = targetRect.getBoundingClientRect();
+        squareData.forEach((pos, el) => {
+            if (el !== activeSq) {
+                el.style.left = (tarRect.left + pos.relX) + 'px';
+                el.style.top = (tarRect.top + pos.relY) + 'px';
+            }
+        });
+    }
+
+    window.addEventListener('mousemove', moveDrag);
+    window.addEventListener('touchmove', (e) => { e.preventDefault(); moveDrag(e); }, {passive: false});
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
+    window.addEventListener('resize', syncPositions);
+
+    dispenser.addEventListener('mousedown', startDrag);
+    dispenser.addEventListener('touchstart', startDrag, {passive: false});
+
+    function clearSquares() {
+        squareData.forEach((v, k) => k.remove());
+        squareData.clear();
+    }
+
+    function checkAnswer() {
+        const ans = parseInt(document.getElementById('user-answer').value);
+        if (ans === currentW * currentH) {
+            document.getElementById('feedback').innerHTML = "🎉 正確！";
+            document.getElementById('feedback').style.color = "#2ecc71";
+        } else {
+            document.getElementById('feedback').innerHTML = "❌ 再試試看。";
+            document.getElementById('feedback').style.color = "#e74c3c";
+        }
+    }
+
+    initGame();
+</script>
+</body>
+</html>
