@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>面積公式的概念及認識</title>
+    <style>
+        :root {
+            /* 針對 iPad A2152 的精確物理 1cm 像素值 */
+            --cm-px: 51.9685px; 
+            --primary-color: #4a90e2;
+            --success-color: #f1c40f;
+            --bg-color: #f0f4f8;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* 頁面切換控制 */
+        .screen {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* 最初頁面樣式 */
+        #screen-start {
+            background: linear-gradient(135deg, #4a90e2 0%, #2c3e50 100%);
+            color: white;
+            z-index: 5000;
+        }
+
+        .big-blue-btn {
+            background-color: #007bff;
+            color: white;
+            border: 4px solid #fff;
+            padding: 25px 60px;
+            font-size: 40px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+
+        .big-blue-btn:active {
+            transform: scale(0.9);
+        }
+
+        /* 排正方形頁面樣式 */
+        #screen-game {
+            flex-direction: row;
+        }
+
+        #header-game {
+            position: absolute;
+            top: 0; width: 100%;
+            background: white;
+            text-align: center;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        #sidebar {
+            width: 280px;
+            height: 100%;
+            background: white;
+            padding: 80px 20px 20px;
+            box-sizing: border-box;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        #canvas-area {
+            flex: 1;
+            height: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding-top: 60px;
+        }
+
+        #target-rect {
+            border: 2px solid #333;
+            position: relative;
+            background: #fafafa;
+            box-sizing: content-box;
+        }
+
+        .rect-label {
+            position: absolute;
+            font-weight: bold;
+            color: #d32f2f;
+            font-size: 18px;
+            pointer-events: none;
+        }
+
+        #dispenser-container {
+            border: 2px dashed #aaa;
+            padding: 15px;
+            text-align: center;
+            border-radius: 10px;
+            background: #fffdf0;
+        }
+
+        .unit-square {
+            width: var(--cm-px);
+            height: var(--cm-px);
+            background-color: #ffcc00;
+            border: 0.5px solid #b8860b;
+            position: fixed;
+            z-index: 1000;
+            box-sizing: border-box;
+            cursor: grab;
+            touch-action: none;
+            transition: none !important;
+        }
+
+        .source-square {
+            display: inline-block;
+            width: var(--cm-px);
+            height: var(--cm-px);
+            background-color: #ffcc00;
+            border: 1px solid #b8860b;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        input[type="number"] {
+            width: 100px;
+            padding: 10px;
+            font-size: 24px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .game-btn {
+            padding: 15px;
+            font-size: 18px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        /* 獎盃頁面樣式 */
+        #screen-success {
+            background: rgba(255,255,255,0.95);
+            z-index: 5000;
+        }
+
+        .trophy-icon {
+            font-size: 180px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 20px rgba(241, 196, 15, 0.5));
+            animation: bounce 1s infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-20px); }
+        }
+
+        .retry-btn {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 20px 50px;
+            font-size: 28px;
+            border-radius: 40px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        #wrong-feedback {
+            color: #e74c3c;
+            font-weight: bold;
+            text-align: center;
+            height: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 最初頁面 -->
+    <div id="screen-start" class="screen active">
+        <h1 style="font-size: 48px; margin-bottom: 40px;">面積公式的概念及認識</h1>
+        <button class="big-blue-btn" onclick="startGame()">開始</button>
+        <p style="margin-top: 30px; opacity: 0.8;">請準備好實體間尺進行學習</p>
+    </div>
+
+    <!-- 排正方形頁面 -->
+    <div id="screen-game" class="screen">
+        <div id="header-game">
+            <h2 style="margin:5px">觀察與鋪放：找出長方形面積</h2>
+        </div>
+        
+        <div id="sidebar">
+            <div id="dispenser-container">
+                <strong>拖曳出 1cm² 正方形</strong><br><br>
+                <div id="dispenser" class="source-square"></div>
+            </div>
+
+            <div>
+                <label>面積是？</label><br>
+                <input type="number" id="answer-input" pattern="\d*"> cm²
+            </div>
+
+            <button class="game-btn" onclick="checkAnswer()">核對答案</button>
+            <button class="game-btn" style="background-color:#7f8c8d" onclick="clearSquares()">清除所有方塊</button>
+            <div id="wrong-feedback"></div>
+            
+            <div style="margin-top: auto; font-size: 11px; color: #999;">
+                iPad A2152 實體尺寸校準模式
+            </div>
+        </div>
+
+        <div id="canvas-area">
+            <div id="target-rect"></div>
+        </div>
+    </div>
+
+    <!-- 獎盃頁面 -->
+    <div id="screen-success" class="screen">
+        <div class="trophy-icon">🏆</div>
+        <h1 style="color: #d4af37; font-size: 40px; margin-bottom: 30px;">太棒了！答對了！</h1>
+        <button class="retry-btn" onclick="resetToStart()">再來一次</button>
+    </div>
+
+<script>
+    const PX_PER_CM = 51.9685;
+    let currentW = 0, currentH = 0;
+    let activeSq = null;
+    let grabOffset = { x: 0, y: 0 };
+    const squareOffsets = new Map();
+
+    const screens = {
+        start: document.getElementById('screen-start'),
+        game: document.getElementById('screen-game'),
+        success: document.getElementById('screen-success')
+    };
+
+    function showScreen(id) {
+        Object.values(screens).forEach(s => s.classList.remove('active'));
+        screens[id].classList.add('active');
+    }
+
+    function startGame() {
+        showScreen('game');
+        initGame(); 
+    }
+
+    function resetToStart() {
+        showScreen('start');
+    }
+
+    function initGame() {
+        currentW = Math.floor(Math.random() * 6) + 5; 
+        currentH = Math.floor(Math.random() * 6) + 7; 
+
+        const rect = document.getElementById('target-rect');
+        rect.style.width = (currentW * PX_PER_CM) + 'px';
+        rect.style.height = (currentH * PX_PER_CM) + 'px';
+
+        document.querySelectorAll('.rect-label').forEach(l => l.remove());
+        createLabel(currentW + " cm", "top", rect);
+        createLabel(currentH + " cm", "left", rect);
+
+        clearSquares();
+        document.getElementById('answer-input').value = "";
+        document.getElementById('wrong-feedback').innerText = "";
+    }
+
+    function createLabel(text, pos, parent) {
+        const span = document.createElement('span');
+        span.className = 'rect-label';
+        span.innerText = text;
+        parent.appendChild(span);
+        if(pos === "top") {
+            span.style.top = "-30px"; span.style.left = "50%"; span.style.transform = "translateX(-50%)";
+        } else {
+            span.style.left = "-65px"; span.style.top = "50%"; span.style.transform = "translateY(-50%) rotate(-90deg)";
+        }
+    }
+
+    function syncPositions() {
+        const tarRect = document.getElementById('target-rect').getBoundingClientRect();
+        squareOffsets.forEach((offset, el) => {
+            if (el !== activeSq) {
+                el.style.left = (tarRect.left + offset.x) + 'px';
+                el.style.top = (tarRect.top + offset.y) + 'px';
+            }
+        });
+    }
+
+    window.addEventListener('resize', syncPositions);
+
+    function startDrag(e, el) {
+        activeSq = el;
+        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+        
+        const rect = activeSq.getBoundingClientRect();
+        grabOffset.x = clientX - rect.left;
+        grabOffset.y = clientY - rect.top;
+        activeSq.style.zIndex = 3000;
+    }
+
+    function handleMove(e) {
+        if (!activeSq) return;
+        if (e.cancelable) e.preventDefault();
+        
+        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+        
+        activeSq.style.left = (clientX - grabOffset.x) + 'px';
+        activeSq.style.top = (clientY - grabOffset.y) + 'px';
+    }
+
+    function endDrag() {
+        if (!activeSq) return;
+        
+        const sqRect = activeSq.getBoundingClientRect();
+        const tarRect = document.getElementById('target-rect').getBoundingClientRect();
+
+        squareOffsets.set(activeSq, {
+            x: sqRect.left - tarRect.left,
+            y: sqRect.top - tarRect.top
+        });
+        
+        activeSq.style.zIndex = 1000;
+        activeSq = null;
+        syncPositions(); 
+    }
+
+    window.addEventListener('mousemove', handleMove, { passive: false });
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
+
+    function spawnAndDrag(e) {
+        if (e.cancelable) e.preventDefault();
+        
+        const newSq = document.createElement('div');
+        newSq.className = 'unit-square';
+        document.body.appendChild(newSq);
+        
+        const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+        const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+        
+        newSq.style.left = (clientX - PX_PER_CM/2) + 'px';
+        newSq.style.top = (clientY - PX_PER_CM/2) + 'px';
+
+        newSq.addEventListener('mousedown', (ev) => { ev.stopPropagation(); startDrag(ev, newSq); });
+        newSq.addEventListener('touchstart', (ev) => { ev.stopPropagation(); startDrag(ev, newSq); });
+
+        startDrag(e, newSq);
+    }
+
+    const dispenser = document.getElementById('dispenser');
+    dispenser.addEventListener('mousedown', spawnAndDrag);
+    dispenser.addEventListener('touchstart', spawnAndDrag, { passive: false });
+
+    function clearSquares() {
+        squareOffsets.forEach((v, k) => k.remove());
+        squareOffsets.clear();
+    }
+
+    function checkAnswer() {
+        const val = parseInt(document.getElementById('answer-input').value);
+        if (val === currentW * currentH) {
+            showScreen('success');
+        } else {
+            document.getElementById('wrong-feedback').innerText = "再數數看，你可以的！";
+        }
+    }
+</script>
+</body>
+</html>
